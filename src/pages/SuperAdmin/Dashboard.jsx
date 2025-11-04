@@ -1,5 +1,5 @@
-// src/pages/superadmin/SuperAdminDashboard.jsx
-import { useMemo, useState } from "react";
+// src/pages/superadmin/Dashboard.jsx
+import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   UsersRound,
@@ -17,26 +17,25 @@ import {
   PauseCircle,
   ArrowUpRight,
   Settings,
-  MoreHorizontalIcon,
 } from "lucide-react";
+import { useAuth } from "../../context/authContext";
+import { useNavigate } from "react-router-dom";
 
-/* ---------- Tokens (thème clair bleu/orange) ---------- */
+import StatCard from "../../components/SuperAdmin/Dashboard/StatCard";
+import UsageChart from "../../components/SuperAdmin/Dashboard/UsageChart";
+import Button from "../../components/SuperAdmin/Dashboard/Button";
+import Loader from "../../components/Loader";
+
+
 const tokens = {
   page: "bg-gradient-to-b from-sky-50 via-white to-white text-slate-800",
   border: "border-slate-200",
-  card: "rounded-2xl border border-slate-200 bg-white shadow-sm",
-  cardHover: "transition hover:shadow-md",
   pill: "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs",
-  brandGrad: "bg-gradient-to-r from-sky-600 to-indigo-600",
-  orangeBtn: "bg-orange-500 hover:bg-orange-600 text-white",
-  ghostBtn:
-    "bg-transparent text-sky-800 hover:bg-sky-50 hover:text-sky-900 underline decoration-orange-300/80 underline-offset-4",
   rowHover: "hover:bg-sky-50/60",
   stickyHead: "sticky top-0 z-10 bg-slate-50/95 backdrop-blur",
   focus: "focus:outline-none focus:ring-2 focus:ring-sky-200",
 };
 
-/* ---------- Composants ---------- */
 function Section({ title, right, children, className = "" }) {
   return (
     <section className={`space-y-4 ${className} mt-8`}>
@@ -46,23 +45,6 @@ function Section({ title, right, children, className = "" }) {
       </div>
       <div>{children}</div>
     </section>
-  );
-}
-
-function StatCard({ icon, label, value, sub }) {
-  return (
-    <div className={`${tokens.card} ${tokens.cardHover} p-5`}>
-      <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-sky-100 to-indigo-100 text-sky-700 ring-1 ring-sky-200">
-          {icon}
-        </div>
-        <div>
-          <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-          <div className="text-2xl font-semibold leading-tight">{value}</div>
-          {sub ? <div className="text-xs text-slate-500">{sub}</div> : null}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -77,52 +59,6 @@ function Badge({ color = "blue", children }) {
   return <span className={`${tokens.pill} border ${map[color]}`}>{children}</span>;
 }
 
-function Button({ children, variant = "primary", className = "", ...rest }) {
-  const variants = {
-    primary: `${tokens.brandGrad} text-white hover:from-sky-500 hover:to-indigo-500`,
-    outline:
-      "border border-slate-300 bg-white hover:bg-slate-50 text-slate-800",
-    ghost: tokens.ghostBtn,
-    orange: tokens.orangeBtn,
-    subtle: "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200",
-    icon:
-      "h-9 w-9 grid place-items-center rounded-lg border border-slate-200 bg-white hover:bg-sky-50 text-slate-700",
-  };
-  return (
-    <button
-      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm transition ${variants[variant]} ${className}`}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* Mini chart SVG (barres) – aucun package */
-function UsageChart({ points = [], className = "" }) {
-  const max = Math.max(1, ...points);
-  const bars = points.map((v, i) => {
-    const h = Math.round((v / max) * 42) + 2;
-    return (
-      <rect
-        key={i}
-        x={i * 12 + 4}
-        y={48 - h}
-        width="8"
-        height={h}
-        rx="2"
-        className="fill-sky-500/80"
-      />
-    );
-  });
-  return (
-    <svg viewBox="0 0 140 50" className={`w-full ${className}`}>
-      <rect x="0" y="0" width="140" height="50" rx="10" className="fill-sky-50" />
-      {bars}
-    </svg>
-  );
-}
-
 /* ---------- Données statiques d'exemple ---------- */
 const PENDING = [
   { id: "REQ-1032", clinic: "Clinique Horizon", admin: "nadia.s@horizon.tn", createdAt: "2025-10-30", note: "Dermato & imagerie" },
@@ -135,9 +71,15 @@ const CLINICS = [
   { id: "CL-003", name: "Cardio+",          domain: "cardioplus.medflow.tn", users: 19, status: "paused", uptime: "99.88%", lastIncident: "Il y a 12 j", usage: [2, 4, 5, 7, 6, 5, 4, 3] },
 ];
 
+
 export default function SuperAdminDashboard() {
+
+  const { user } = useAuth();
+
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
+
+
 
   const filtered = useMemo(() => {
     return CLINICS.filter((c) => {
@@ -151,6 +93,7 @@ export default function SuperAdminDashboard() {
       return okStatus && okQuery;
     });
   }, [query, status]);
+
 
   return (
     <main className={`min-h-screen ${tokens.page}`}>

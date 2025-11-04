@@ -1,64 +1,110 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/authContext"; 
+import api from "../../api/axios";
+import Loader from "../../components/Loader";
 
 export default function SuperAdminLogin() {
-  const [email, setEmail] = useState("");
-  const [pwd, setPwd] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { user, loading, login, logout } = useAuth(); 
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("superadmin@example.com");
+  const [password, setPassword] = useState("string");
   const [err, setErr] = useState("");
 
-  async function onSubmit(e) {
+  useEffect(() => {
+    if (user) {
+      // Si deja co aller au dashboard
+      navigate("/__superadmin/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true); setErr("");
+    setErr("");
+    
+    logout(); // Effacer les tokens
+
     try {
-      const res = await fetch("http://localhost:9000/api/superadmin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pwd }),
-        credentials: "include", // si tu poses un cookie httpOnly côté API
+      const response = await api.post("/api/auth/login/", {
+        email,
+        password,
       });
-      if (!res.ok) throw new Error(`Login échoué (${res.status})`);
-      const data = await res.json(); // si tu renvoies un token tu peux le stocker ici
-      // TODO: stocker token/jwt (localStorage) ou s'appuyer sur cookie httpOnly
-      // puis rediriger vers /__superadmin (dashboard prochainement)
-      window.location.href = "/__superadmin"; // placeholder
-    } catch (e) {
-      setErr(e.message);
+
+      if (response.status === 200) {
+        // Connexion réussie, on stocke dans les cookies
+        login(response.data.user, response.data.access, response.data.refresh);
+        navigate("/__superadmin/dashboard", { replace: true });
+      }
+    } catch (error) {
+      if (error.response) {
+        // Erreur backend
+        setErr(error.response.data.detail || "Erreur de connexion");
+      } else {
+        // Erreur réseau
+        setErr("Erreur de connexion, veuillez réessayer.");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+
+  // En attendant de voir si on est deja co ou pas
+  if (loading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader />
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-brand-50">
+    <div className="min-h-screen bg-linear-to-b from-white to-sky-50">
       <div className="container-max py-20 grid place-items-center">
-        <form onSubmit={onSubmit} className="card w-full max-w-md">
-          <h1 className="text-2xl font-bold">Connexion Super Admin</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Accès réservé. Cette page n’est pas listée dans la navigation publique.
-          </p>
+        <form onSubmit={handleLogin} className="card w-full max-w-md p-8 bg-white shadow-lg rounded-xl">
+          <h1 className="text-3xl font-semibold text-center text-slate-800">Connectez-vous</h1>
 
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input value={email} onChange={e=>setEmail(e.target.value)}
-                     type="email" required
-                     className="w-full rounded-xl border border-black/10 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"/>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                placeholder="email@exemple.com"
+              />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-1">Mot de passe</label>
-              <input value={pwd} onChange={e=>setPwd(e.target.value)}
-                     type="password" required
-                     className="w-full rounded-xl border border-black/10 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"/>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                placeholder="••••••••"
+              />
             </div>
           </div>
 
-          {err && <p className="text-sm text-red-600 mt-3">{err}</p>}
+          {err && <p className="text-sm text-red-600 mt-3">{err}</p>} 
 
-          <button disabled={loading}
-                  className="btn-primary w-full justify-center mt-6">
+          <button
+            disabled={loading}
+            className={`w-full mt-6 py-3 cursor-pointer text-white font-semibold rounded-xl transition ${loading ? "bg-gray-400" : "bg-orange-500 hover:bg-orange-600"}`}
+          >
             {loading ? "Connexion..." : "Se connecter"}
           </button>
+            <p className="text-sm text-center text-slate-600 mt-1">
+            Vous ne savez pas ce que vous faites ici ? 
+            <br/>
+            On va vous ramener en <Link to="/" className="text-orange-500 hover:underline">lieu sûr</Link>.
+          </p>
         </form>
+        
       </div>
     </div>
   );
