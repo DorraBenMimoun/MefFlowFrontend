@@ -2,7 +2,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { LogOut, Menu, X } from "lucide-react";
-import { tenant } from "../../tenant";
 import { useAuth } from "../../context/authContext";
 
 const tokens = {
@@ -16,10 +15,6 @@ const tokens = {
   cta: "rounded-xl px-4 py-2 text-white bg-sky-500 hover:bg-sky-600 transition shadow-sm",
 };
 
-// Construit une URL vers l'accueil + ancre (#id) 
-function homeHash(hash) {
-  return `/#${hash.replace(/^#/, "")}`;
-}
 
 export default function SuperNavbar() {
   const loc = useLocation();
@@ -52,7 +47,7 @@ export default function SuperNavbar() {
         <Link to="/" className="flex items-center gap-2">
           <div className={tokens.brandBox}>M</div>
           <span className="font-semibold text-lg text-slate-900">
-            MedFlow{tenant ? ` · ${tenant}` : ""}
+            MedFlow
           </span>
         </Link>
 
@@ -100,8 +95,8 @@ export default function SuperNavbar() {
           <div className="mx-4 mb-4 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
             {items.map((it) => (
               <button
-                key={it.hash}
-                onClick={() => go(it.hash)}
+                key={it.link}
+                onClick={() => go(it.link)}
                 className={`block w-full text-left ${tokens.link}`}
               >
                 {it.label}

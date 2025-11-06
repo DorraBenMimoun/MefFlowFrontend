@@ -1,28 +1,27 @@
-// src/pages/StartClinic.jsx
+// src/pages/SignUp.jsx
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
+import api from "../api/axios";
+
 import { 
-  Building2, 
-  Mail, 
-  Phone, 
-  Upload, 
   CheckCircle2, 
   ChevronRight, 
   ChevronLeft,
-  Edit2, 
-  MapPin, 
-  Globe, 
-  UserRound,
-  Camera, 
-  BookUser,
-  Pen,
-  PenLine
+  LoaderCircle
 } from "lucide-react";
-import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import Select from "react-select";
 import { getCountries, getCountryCallingCode } from "react-phone-number-input";
 import countryList from "country-list";
+import { toast } from "react-hot-toast";
+import Cookies from "js-cookie";
+
+
+// Import des composants
+import ClinicInfoStep from "../components/ClinicRequest/ClinicInfoStep";
+import AdminInfoStep from "../components/ClinicRequest/AdminInfoStep";
+import InfoSidebar from "../components/ClinicRequest/InfoSidebar";
+import SuccessRequest from "../components/ClinicRequest/SuccessRequest";
+
 
 /* ---------- Configuration des pays ---------- */
 // Formatage des pays pour react-select
@@ -36,7 +35,7 @@ const countryOptions = getCountries().map(countryCode => {
   };
 }).sort((a, b) => a.label.localeCompare(b.label));
 
-// Style personnalisé pour react-select pour matcher votre thème
+// Style personnalisé pour react-select 
 const customSelectStyles = {
   control: (base, state) => ({
     ...base,
@@ -81,27 +80,88 @@ const tokens = {
 };
 
 export default function StartClinic() {
-  const { register, handleSubmit, setValue, watch, trigger, formState: { errors } } = useForm();
+  const { register, handleSubmit, setValue, watch, trigger, clearErrors, formState: { errors, touchedFields } } = useForm({ mode: 'onTouched' });
   const [step, setStep] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
   const [logo, setLogo] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [phoneValue, setPhoneValue] = useState("");
   const [selectedCountry, setSelectedCountry] = useState(null);
+  const [slugAvailable, setSlugAvailable] = useState(true);
+  const [checkingSlug, setCheckingSlug] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
-  const onSubmit = (data) => {
-    console.log({
-      ...data,
-      phoneNumber: phoneValue,
-      country: selectedCountry?.value
-    });
-    setSubmitted(true);
+  useEffect(() => {
+    const submitted = Cookies.get("clinicRequestSubmitted");
+    if (submitted === "true") {
+      setAlreadySubmitted(true);
+    }
+  }, []);
+
+  const onSubmit = async (data) => {
+    // Préparer les données à envoyer
+    const formData = new FormData();
+    formData.append("clinic_name", data.clinicName);
+    formData.append("clinic_slug ", slug);
+    formData.append("admin_name ", data.fullName);
+    formData.append("admin_email ", data.adminEmail);
+    formData.append("admin_phone ", data.phoneNumber);
+    formData.append("country", data.country);
+    formData.append("city", data.city);
+    formData.append("address", data.address);
+    formData.append("phoneNumber", data.phoneNumber);
+    if( logo ){
+      formData.append("logo", logo);
+    }
+    console.log("Submitting clinic data:", Object.fromEntries(formData.entries()));
+    api.post("/api/clinic-requests/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data"
+      }
+    }).then(response => {
+      toast.success("Demande de création de clinique soumise avec succès.");
+      setAlreadySubmitted(true);
+      Cookies.set("clinicRequestSubmitted", "true");
+      Cookies.set("clinicRequestData", JSON.stringify({clinicName: data.clinicName, adminEmail: data.adminEmail, fullName: data.fullName}));
+    }).catch(async error => {
+      console.error("Error submitting clinic registration:", error);
+      if(error.code === 'ERR_NETWORK') {
+        toast.error("Erreur réseau. Veuillez vérifier votre connexion internet et réessayer.");
+      }else {
+        console.log(error.response.data);
+        toast.error(error.response.data.message || "Une erreur est survenue lors de l'inscription.");
+        await checkSlugAvailability(slug); // Re-vérifier la disponibilité du slug en cas d'erreur
+      }
+    })
   };
 
-  // Register the country field because it's controlled via react-select and setValue
+  // Register les champs tel et pays
   useEffect(() => {
     register("country", { required: "Le pays est requis" });
+    register("phoneNumber", { required: "Le téléphone est requis" });
   }, [register]);
+
+  // Pour le champs telephone
+  useEffect(() => {
+    setValue("phoneNumber", phoneValue);
+    if (phoneValue) {
+      clearErrors("phoneNumber");
+    }
+  }, [phoneValue, setValue, clearErrors]);
+
+  // Pour les autres champs & effacer les erreurs si touché
+  const formValues = watch();
+  useEffect(() => {
+    Object.keys(errors || {}).forEach((field) => {
+      const val = formValues ? formValues[field] : undefined;
+      const touched = touchedFields ? touchedFields[field] : false;
+      // Sauf lemail car histoire de regex machin
+      if (field !== "adminEmail") {
+        if (touched && val !== undefined && val !== "") {
+          clearErrors(field);
+        }
+      }
+    });
+  }, [formValues, errors, clearErrors, touchedFields]);
 
   const clinicName = watch("clinicName");
   const slug = clinicName ? clinicName.toLowerCase().replace(/\s+/g, "-") : "";
@@ -113,7 +173,6 @@ export default function StartClinic() {
       setLogoPreview(URL.createObjectURL(file));
     }
   };
-
 
   const handleNext = async () => {
     // Validate required fields of step 0 before moving to step 1
@@ -140,12 +199,46 @@ export default function StartClinic() {
     }
   };
 
+  const checkSlugAvailability = async (slug) => {
+    try {
+      const response = await api.get(`api/clinics/check-slug/?slug=${slug}`);
+      console.log("Slug availability response:", response.data);
+      setCheckingSlug(false);
+      return response.data.available;
+
+    } catch (error) {
+      console.error("Error checking slug availability:", error);
+      setCheckingSlug(false);
+      return false;
+    }
+  };
+
+  // Quand arrêter d'écrire le nom de la clinique, vérifier la disponibilité du slug
+  useEffect(() => {
+    if( !slug || slug.length < 2) return;
+    setCheckingSlug(true);
+
+    const delayDebounceFn = setTimeout(() => {
+      if (slug && slug.length > 0) {
+        checkSlugAvailability(slug).then((available) => {
+          setSlugAvailable(available);
+        });
+      }
+      setCheckingSlug(false);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [clinicName]);
+
+  if( alreadySubmitted ) {
+    return <SuccessRequest setAlreadySubmitted={setAlreadySubmitted} />;
+  }
+
   return (
     <main className={tokens.page}>
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 -mt-8">
 
-
-        {/* Stepper amélioré */}
+        {/* Stepper */}
         <div className="mb-12">
           <div className="flex justify-center items-center gap-8">
             {[0, 1].map((index) => (
@@ -186,325 +279,44 @@ export default function StartClinic() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
               {/* Étape 1 - Informations de la clinique */}
               {step === 0 && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">Informations de la clinique</h2>
-                      <p className="text-slate-600 text-sm">Les informations principales de votre établissement</p>
-                    </div>
-                  </div>
-
-                  {/* Nom de la clinique avec slug */}
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className={tokens.iconInput}>
-                        <PenLine className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <label htmlFor="clinicName" className="block text-sm font-medium text-slate-700 mb-1">
-                          Nom de la clinique *
-                        </label>
-                        <input
-                          {...register("clinicName", { required: "Le nom de la clinique est requis" })}
-                          id="clinicName"
-                          type="text"
-                          placeholder="Ex: Clinique Guéridon"
-                          className={`${tokens.input} ${tokens.focus} ${
-                            errors.clinicName ? "border-red-300" : ""
-                          }`}
-                        />
-                        {errors.clinicName && (
-                          <p className="text-xs text-red-500 mt-1">{errors.clinicName.message}</p>
-                        )}
-                        
-                        {/* Slug en petit à droite */}
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-slate-500">Votre site sera :</span>
-                          <code className="text-xs bg-slate-100 px-2 py-1 rounded border text-slate-600">
-                            {slug || "votre-clinique"}
-                          </code> 
-                          <span className="text-xs text-slate-500">.medflow.tn</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Upload du logo amélioré */}
-                    <div className="flex items-start gap-3">
-                      <div className={tokens.iconInput}>
-                        <Camera className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-slate-700 mb-3">
-                          Logo de la clinique
-                          <span className="text-slate-400 font-normal ml-1">(optionnel)</span>
-                        </label>
-                        
-                        <div className="flex flex-col sm:flex-row gap-4 items-start">
-                          {/* Zone de upload */}
-                          <label className="flex-1 cursor-pointer">
-                            <input
-                              {...register("clinicLogo")}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleLogoChange}
-                            />
-                            <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 hover:border-orange-400 hover:bg-orange-50 ${
-                              logoPreview ? "border-orange-300 bg-orange-50" : "border-slate-300"
-                            }`}>
-                              <Upload className={`h-8 w-8 mx-auto mb-2 ${
-                                logoPreview ? "text-orange-500" : "text-slate-400"
-                              }`} />
-                              <p className="text-sm font-medium text-slate-700 mb-1">
-                                {logoPreview ? "Logo sélectionné" : "Cliquez pour uploader"}
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                PNG, JPG jusqu'à 10MB
-                              </p>
-                            </div>
-                          </label>
-
-                          {/* Aperçu du logo */}
-                          {logoPreview && (
-                            <div className="text-center">
-                              <p className="text-xs text-slate-600 mb-2">Aperçu :</p>
-                              <div className="w-20 h-20 rounded-lg border-2 border-orange-200 overflow-hidden bg-white p-1">
-                                <img 
-                                  src={logoPreview} 
-                                  alt="Aperçu logo" 
-                                  className="w-full h-full object-contain"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Adresse avec pays et ville */}
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className={tokens.iconInput}>
-                          <MapPin className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-slate-700 mb-3">
-                            Adresse de la clinique *
-                          </label>
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                            {/* Pays avec liste complète */}
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Pays *
-                              </label>
-                              <Select
-                                options={countryOptions}
-                                styles={customSelectStyles}
-                                placeholder="Sélectionnez un pays"
-                                value={selectedCountry}
-                                onChange={(selected) => {
-                                  setSelectedCountry(selected);
-                                  setValue("country", selected?.value);
-                                  
-                                }}
-                                isSearchable
-                                noOptionsMessage={() => "Aucun pays trouvé"}
-                              />
-                              {errors.country && (
-                                <p className="text-xs text-red-500 mt-1">{errors.country.message}</p>
-                              )}
-                            </div>
-
-                            {/* Ville */}
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Ville *
-                              </label>
-                              <input
-                                {...register("city", { required: "La ville est requise" })}
-                                type="text"
-                                placeholder="Ex: Tunis"
-                                className={`${tokens.input} ${tokens.focus} ${
-                                  errors.city ? "border-red-300" : ""
-                                }`}
-                              />
-                              {errors.city && (
-                                <p className="text-xs text-red-500 mt-1">{errors.city.message}</p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Adresse complète */}
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Adresse complète *
-                            </label>
-                            <input
-                              {...register("address", { required: "L'adresse est requise" })}
-                              type="text"
-                              placeholder="Ex: 123 Avenue du Parc "
-                              className={`${tokens.input} ${tokens.focus} ${
-                                errors.address ? "border-red-300" : ""
-                              }`}
-                            />
-                            {errors.address && (
-                              <p className="text-xs text-red-500 mt-1">{errors.address.message}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <ClinicInfoStep
+                  register={register}
+                  errors={errors}
+                  trigger={trigger}
+                  watch={watch}
+                  setValue={setValue}
+                  clearErrors={clearErrors}
+                  selectedCountry={selectedCountry}
+                  setSelectedCountry={setSelectedCountry}
+                  logoPreview={logoPreview}
+                  handleLogoChange={handleLogoChange}
+                  checkingSlug={checkingSlug}
+                  slugAvailable={slugAvailable}
+                  customSelectStyles={customSelectStyles}
+                  countryOptions={countryOptions}
+                  tokens={tokens}
+                />
               )}
 
               {/* Étape 2 - Informations admin */}
               {step === 1 && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <BookUser className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800">Vos informations</h2>
-                      <p className="text-slate-600 text-sm">Coordonnées pour vous contacter et créer votre compte</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Nom complet */}
-                    <div className="flex items-start gap-3">
-                      <div className={tokens.iconInput}>
-                        <UserRound className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <label htmlFor="fullName" className="block text-sm font-medium text-slate-700 mb-1">
-                          Nom complet *
-                        </label>
-                        <input
-                          {...register("fullName", { required: "Le nom complet est requis" })}
-                          id="fullName"
-                          type="text"
-                          placeholder="Ex: Guéridon"
-                          className={`${tokens.input} ${tokens.focus} ${
-                            errors.fullName ? "border-red-300" : ""
-                          }`}
-                        />
-                        {errors.fullName && (
-                          <p className="text-xs text-red-500 mt-1">{errors.fullName.message}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Email */}
-                    <div className="flex items-start gap-3">
-                      <div className={tokens.iconInput}>
-                        <Mail className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <label htmlFor="adminEmail" className="block text-sm font-medium text-slate-700 mb-1">
-                          Email professionnel *
-                        </label>
-                        <input
-                          {...register("adminEmail", { 
-                            required: "L'email est requis",
-                            pattern: {
-                              value: /^\S+@\S+$/i,
-                              message: "Format d'email invalide"
-                            }
-                          })}
-                          id="adminEmail"
-                          type="email"
-                          placeholder="ex: contact@clinique.com"
-                          className={`${tokens.input} ${tokens.focus} ${
-                            errors.adminEmail ? "border-red-300" : ""
-                          }`}
-                        />
-                        {errors.adminEmail && (
-                          <p className="text-xs text-red-500 mt-1">{errors.adminEmail.message}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Téléphone avec indicatif international */}
-                    <div className="flex items-start gap-3">
-                      <div className={tokens.iconInput}>
-                        <Phone className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Téléphone *
-                        </label>
-                        <div className={`rounded-xl border border-slate-300 bg-white overflow-hidden transition-all duration-200 ${
-                          errors.phoneNumber ? "border-red-300" : ""
-                        } ${tokens.focus}`}>
-                          <PhoneInput
-                            international
-                            defaultCountry={selectedCountry ? selectedCountry.countryCode : "TN"}
-                            value={phoneValue}
-                            onChange={setPhoneValue}
-                            placeholder="Entrez votre numéro de téléphone"
-                            className="h-12 px-3"
-                          />
-                        </div>
-                        {errors.phoneNumber && (
-                          <p className="text-xs text-red-500 mt-1">{errors.phoneNumber.message}</p>
-                        )}
-                        <p className="text-xs text-slate-500 mt-1">
-                          Format international recommandé
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AdminInfoStep
+                  register={register}
+                  errors={errors}
+                  phoneValue={phoneValue}
+                  setPhoneValue={setPhoneValue}
+                  selectedCountry={selectedCountry}
+                  tokens={tokens}
+                />
               )}
             </div>
           </div>
 
           {/* Panneau latéral d'information */}
-          <div className="lg:w-80">
-            <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-2xl border border-sky-100 p-6 sticky top-6">
-              <h3 className="font-semibold text-slate-800 text-lg mb-4">
-                Guide de configuration
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Validation rapide</p>
-                    <p className="text-xs text-slate-600">Votre clinique sera activé sous 24h</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Globe className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Support international</p>
-                    <p className="text-xs text-slate-600">Tous les pays et indicatifs supportés</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="h-5 w-5 text-sky-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">Support dédié</p>
-                    <p className="text-xs text-slate-600">Notre équipe vous accompagne</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 p-4 bg-white rounded-lg border border-sky-200">
-                <p className="text-xs text-slate-600">
-                  <strong>Astuce :</strong> Utilisez un logo carré pour un meilleur rendu. Taille recommandée : 256x256 pixels.
-                </p>
-              </div>
-            </div>
-          </div>
+          <InfoSidebar tokens={tokens} />
         </div>
 
-        {/* Navigation en bas */}
+        {/* Navigation */}
         <div className="mt-8 flex justify-between items-center">
           <button
             onClick={handlePrev}

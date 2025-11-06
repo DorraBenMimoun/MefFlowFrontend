@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 import api, { setAuthToken } from "../api/axios";
 import Cookies from "js-cookie";
@@ -24,13 +24,22 @@ const getUserFromToken = async () => {
 
     if (response.status !== 200) return null;
     const user = response.data;
-
-    console.log("User fetched from token:", user);
-
+    
     return user;
   } catch (err) {
+    // Si erreur reseau 
+    if(err.code === 'ERR_NETWORK') {
+      // Plus tard toast erreur reseau
+      console.log("Erreur reseau");
+      return null;
+    }else {
+      // Token surement invalide, on le supprime
+      Cookies.remove("auth_token");
+      Cookies.remove("refresh_token");
+      setAuthToken(null);
+    }
     return null;
-  }
+    }
 };
 
 export const AuthProvider = ({ children }) => {

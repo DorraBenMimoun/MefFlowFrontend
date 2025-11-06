@@ -17,6 +17,7 @@ import SuperAdminNavbar from "./components/Navbar/SuperAdminNavbar";
 import Footer from "./components/Footer/Footer";
 import { useAuth } from "./context/authContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { Toaster } from "react-hot-toast";
 
 export default function App() {
   const onRoot = !tenant; // root domain or localhost  
@@ -24,7 +25,7 @@ export default function App() {
 
   return (
     <>
-
+      <Toaster />
       { user && !loading && user.role === "SUPER_ADMIN" ?
         <SuperAdminNavbar /> :
         <Navbar />  
