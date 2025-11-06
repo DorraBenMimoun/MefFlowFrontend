@@ -5,6 +5,8 @@ import { tenant } from "./tenant";
 import SuperAdminLogin from "./pages/SuperAdmin/Login";
 import Dashboard from "./pages/SuperAdmin/Dashboard";
 import Home from "./pages/SuperAdmin/Home";
+import ClinicRequest from "./pages/SuperAdmin/ClinicRequest";
+import ClinicInfos from "./pages/SuperAdmin/ClinicInfos";
 
 // Other pages
 import Landing from "./pages/Landing";
@@ -46,6 +48,22 @@ export default function App() {
             }
           />
           
+          <Route path="/__superadmin/clinic-request/:id" 
+            element={
+              <ProtectedRoute roles={["SUPER_ADMIN"]}>
+                <ClinicRequest />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route path="/__superadmin/clinic-infos/:id" 
+            element={
+              <ProtectedRoute roles={["SUPER_ADMIN"]}>
+                <ClinicInfos />
+              </ProtectedRoute>
+            } 
+          />
+
           <Route path="/__superadmin/*" element={<Navigate to="/__superadmin/login" replace />} />
           <Route path="/home" element={<Home />} />
           <Route path="*" element={<NotFound />} />

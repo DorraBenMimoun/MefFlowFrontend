@@ -1,31 +1,23 @@
 // src/pages/superadmin/Dashboard.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Building2,
   UsersRound,
   Activity,
   CheckCircle2,
   Clock,
-  Search,
-  Filter,
-  MoreHorizontal,
   Globe,
   ShieldCheck,
-  Mail,
   Ban,
   PlayCircle,
-  PauseCircle,
-  ArrowUpRight,
-  Settings,
 } from "lucide-react";
 import { useAuth } from "../../context/authContext";
-import { useNavigate } from "react-router-dom";
+
 
 import StatCard from "../../components/SuperAdmin/Dashboard/StatCard";
-import UsageChart from "../../components/SuperAdmin/Dashboard/UsageChart";
 import Button from "../../components/SuperAdmin/Dashboard/Button";
-import Loader from "../../components/Loader";
-
+import ClinicRequestsList from "../../components/SuperAdmin/Dashboard/ClinicRequestsList";
+import ClinicsList from "../../components/SuperAdmin/Dashboard/ClinicsList";
 
 const tokens = {
   page: "bg-gradient-to-b from-sky-50 via-white to-white text-slate-800",
@@ -36,34 +28,7 @@ const tokens = {
   focus: "focus:outline-none focus:ring-2 focus:ring-sky-200",
 };
 
-function Section({ title, right, children, className = "" }) {
-  return (
-    <section className={`space-y-4 ${className} mt-8`}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {right}
-      </div>
-      <div>{children}</div>
-    </section>
-  );
-}
 
-function Badge({ color = "blue", children }) {
-  const map = {
-    blue: "bg-sky-50 text-sky-800 border-sky-200",
-    orange: "bg-orange-50 text-orange-700 border-orange-200",
-    gray: "bg-slate-50 text-slate-700 border-slate-200",
-    green: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    red: "bg-rose-50 text-rose-700 border-rose-200",
-  };
-  return <span className={`${tokens.pill} border ${map[color]}`}>{children}</span>;
-}
-
-/* ---------- Données statiques d'exemple ---------- */
-const PENDING = [
-  { id: "REQ-1032", clinic: "Clinique Horizon", admin: "nadia.s@horizon.tn", createdAt: "2025-10-30", note: "Dermato & imagerie" },
-  { id: "REQ-1033", clinic: "Centre Azur", admin: "amel.r@azur.tn", createdAt: "2025-11-01", note: "Pédiatrie" },
-];
 
 const CLINICS = [
   { id: "CL-001", name: "Clinique Azur",    domain: "azur.medflow.tn",    users: 42, status: "active", uptime: "99.96%", lastIncident: "Il y a 21 j", usage: [12, 18, 22, 25, 20, 27, 30, 28] },
@@ -73,27 +38,6 @@ const CLINICS = [
 
 
 export default function SuperAdminDashboard() {
-
-  const { user } = useAuth();
-
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-
-
-
-  const filtered = useMemo(() => {
-    return CLINICS.filter((c) => {
-      const okStatus = status === "all" ? true : c.status === status;
-      const q = query.trim().toLowerCase();
-      const okQuery =
-        !q ||
-        c.name.toLowerCase().includes(q) ||
-        c.domain.toLowerCase().includes(q) ||
-        c.id.toLowerCase().includes(q);
-      return okStatus && okQuery;
-    });
-  }, [query, status]);
-
 
   return (
     <main className={`min-h-screen ${tokens.page}`}>
@@ -126,137 +70,19 @@ export default function SuperAdminDashboard() {
         {/* KPI */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon={<Building2 className="h-5 w-5" />} label="Cliniques actives" value="24" sub="+3 ce mois" />
-          <StatCard icon={<Clock className="h-5 w-5" />}     label="Demandes en attente" value={PENDING.length} sub="Réponse moyenne 12h" />
+          <StatCard icon={<Clock className="h-5 w-5" />}     label="Demandes en attente" value="44" sub="Réponse moyenne 12h" />
           <StatCard icon={<UsersRound className="h-5 w-5" />} label="Utilisateurs totaux" value="1 124" sub="+86 cette semaine" />
           <StatCard icon={<Activity className="h-5 w-5" />}   label="Disponibilité globale" value="99.93%" sub="30j glissants" />
         </div>
 
         {/* Demandes de création */}
-        <Section
-          title="Demandes de création de clinique"
-          right={<Button variant="outline" className={tokens.focus}><Filter className="h-4 w-4" /> Filtrer</Button>}
-        >
-          <div className={`${tokens.card} ${tokens.cardHover} overflow-hidden`}>
-            <div className={`grid grid-cols-12 gap-4 border-b border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 ${tokens.stickyHead}`}>
-              <div className="col-span-2">ID</div>
-              <div className="col-span-3">Clinique</div>
-              <div className="col-span-3">Admin</div>
-              <div className="col-span-2">Date</div>
-              <div className="col-span-2 text-right">Actions</div>
-            </div>
-            <ul className="divide-y divide-slate-200">
-              {PENDING.map((r) => (
-                <li key={r.id} className={`grid grid-cols-12 gap-4 px-4 py-3 text-sm ${tokens.rowHover}`}>
-                  <div className="col-span-2"><Badge color="orange">{r.id}</Badge></div>
-                  <div className="col-span-3 font-medium">{r.clinic}</div>
-                  <div className="col-span-3 flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-slate-400" />
-                    <span className="truncate">{r.admin}</span>
-                  </div>
-                  <div className="col-span-2">{r.createdAt}</div>
-                  <div className="col-span-2 flex items-center justify-end gap-2">
-                    <Button variant="primary" className="px-3 py-1.5">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Valider
-                    </Button>
-                    <Button variant="subtle" className="px-3 py-1.5">Détails</Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Section>
+        <ClinicRequestsList />
 
         {/* Gestion des cliniques */}
-        <Section
-          title="Gestion des cliniques"
-          right={
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Rechercher (nom, domaine, id)…"
-                  className={`h-10 w-64 rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm ${tokens.focus}`}
-                />
-              </div>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className={`h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm ${tokens.focus}`}
-              >
-                <option value="all">Tous les statuts</option>
-                <option value="active">Actives</option>
-                <option value="paused">En pause</option>
-              </select>
-            </div>
-          }
-        >
-          <div className={`${tokens.card} ${tokens.cardHover} overflow-hidden`}>
-            <div className={`grid grid-cols-12 gap-4 border-b border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 ${tokens.stickyHead}`}>
-              <div className="col-span-4">Clinique</div>
-              <div className="col-span-2">Domaine</div>
-              <div className="col-span-2">Utilisateurs</div>
-              <div className="col-span-4 text-right">Actions</div>
-            </div>
-            <ul className="divide-y divide-slate-200">
-              {filtered.map((c) => (
-                <li key={c.id} className={`grid grid-cols-12 gap-4 px-4 py-3 text-sm ${tokens.rowHover}`}>
-                  <div className="col-span-4 flex items-center gap-3">
-                    <div className="grid h-9 w-9 place-items-center rounded-lg bg-sky-100 text-sky-800 ring-1 ring-sky-200">
-                      <Building2 className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-medium leading-tight">{c.name}</div>
-                      <div className="text-xs text-slate-500">{c.id}</div>
-                    </div>
-                    {c.status === "active" ? (
-                      <Badge color="green">Active</Badge>
-                    ) : (
-                      <Badge color="gray">En pause</Badge>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-slate-400" />
-                      <span className="truncate text-slate-700">{c.domain}</span>
-                    </div>
-                  </div>
-
-                  <div className="col-span-1 flex items-center gap-2">{c.users}</div>
-
-                  <div className="col-span-5 flex items-center justify-end gap-2">
-                    <Button variant="subtle" className="px-3 py-1.5">
-                      <UsersRound className="h-4 w-4" /> Admins
-                    </Button>
-                    <Button variant="subtle" className="px-3 py-1.5">
-                      <Settings  className="h-4 w-4" /> Gérer
-                    </Button>
-                    {c.status === "active" ? (
-                      <Button variant="outline" className="px-3 py-1.5" title="Mettre en pause">
-                        <PauseCircle className="h-4 w-4" /> Mettre en pause
-                      </Button>
-                    ) : (
-                      <Button variant="primary" className="px-3 py-1.5" title="Réactiver">
-                        <PlayCircle className="h-4 w-4" /> Réactiver
-                      </Button>
-                    )}
-                    <Button variant="outline" className="px-3 py-1.5"
-                     title="Plus">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Section>
+        <ClinicsList tokens={tokens} clinics={CLINICS} />
 
         {/* Usage par clinique */}
-        <Section
+        {/* <Section
           title="Utilisation de l’app par clinique"
           right={<Button variant="ghost" className="text-sm">Voir tout <ArrowUpRight className="h-4 w-4" /></Button>}
         >
@@ -296,7 +122,7 @@ export default function SuperAdminDashboard() {
               </div>
             ))}
           </div>
-        </Section>
+        </Section> */}
 
         {/* Bandeau bas (actions rapides) */}
         <div className="mt-10 grid gap-4 md:grid-cols-2">
@@ -320,11 +146,11 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* Légende & aide */}
+        {/* Légende JSP on verra plus tard */}
         <div className="mt-8 text-xs text-slate-500">
           <p className="flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            Les données affichées sont fictives pour la démonstration.
+            Aucune panne detectée durant les 30 derniers jours.
           </p>
         </div>
       </div>
